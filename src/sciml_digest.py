@@ -385,30 +385,56 @@ def render_card(p):
     return "\n".join(out)
 
 
-def render_html(selected, stats, date_str):
-    analyzed = [p for p in selected if p.get("analysis")]
-    others = [p for p in selected if not p.get("analysis")]
+def render_html(analyzed, briefs, extras, stats, date_str):
+    """analyzed: full briefings; briefs: one-line cards; extras: title-only list beyond the caps."""
     body = []
-    if not selected:
+    if not (analyzed or briefs):
         body.append('<div class="card">오늘은 관심 기준을 넘은 논문이 없습니다.</div>')
     if analyzed:
         body.append(f"<h2>상세 분석 ({len(analyzed)})</h2>")
         body += [render_card(p) for p in analyzed]
-    if others:
-        body.append(f"<h2>함께 볼 만한 논문 ({len(others)})</h2>")
-        body += [render_card(p) for p in others]
+    if briefs:
+        body.append(f"<h2>함께 볼 만한 논문 ({len(briefs)})</h2>")
+        body += [render_card(p) for p in briefs]
+    if extras:
+        rows = "".join(
+            f'<li><b>{p["score"]}</b> · <a href="{p["url"]}">{_esc(p["title"])}</a><br>{_md(p.get("reason"))}</li>'
+            for p in extras
+        )
+        body.append(f'<details class="card"><summary>그 외 관련 논문 {len(extras)}편 (제목만)</summary><ul>{rows}</ul></details>')
+    shown = len(analyzed) + len(briefs) + len(extras)
+    skipped = f" · 이전에 본 논문 {stats['seen']}편 제외" if stats.get("seen") else ""
     return f"""<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SciML arXiv Digest {date_str}</title><style>{CSS}</style></head>
 <body><div class="wrap">
 <h1>SciML arXiv Digest · {date_str}</h1>
-<div class="meta">전체 {stats['fetched']}편 → 키워드 필터 {stats['prefiltered']}편 → LLM 스크리닝 후 {len(selected)}편 선정 · {_esc(stats['model'])}</div>
+<div class="meta">전체 {stats['fetched']}편{skipped} → 키워드 필터 {stats['prefiltered']}편 → LLM 스크리닝 후 {shown}편 선정 · {_esc(stats['model'])}</div>
 {''.join(body)}
 </div></body></html>"""
 
 
 # ---------------------------------------------------------------------------
-# 6. Email
+# 6. History of already-screened papers (so the same paper is never sent twice)
+# ---------------------------------------------------------------------------
+def load_history(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def save_history(path, history, keep_days=365):
+    cutoff = (datetime.date.today() - datetime.timedelta(days=keep_days)).isoformat()
+    history = {k: v for k, v in history.items() if v.get("date", "") >= cutoff}
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, indent=0, sort_keys=True)
+
+
+# ---------------------------------------------------------------------------
+# 7. Email
 # ---------------------------------------------------------------------------
 def send_email(html_body, subject):
     """Send via SMTP (MAIL_USERNAME / MAIL_PASSWORD, e.g. a Gmail app password). Skips if unset."""
@@ -443,6 +469,8 @@ def main():
     parser.add_argument("--no-llm", action="store_true", help="only fetch + keyword prefilter (no API calls)")
     parser.add_argument("--no-email", action="store_true", help="do not send email")
     parser.add_argument("--limit", type=int, default=None, help="max number of papers to screen (for testing)")
+    parser.add_argument("--no-history", action="store_true",
+                        help="ignore and do not update the list of already-screened papers (for testing)")
     args = parser.parse_args()
 
     with open(args.config, encoding="utf-8") as f:
@@ -458,6 +486,13 @@ def main():
     if not papers:
         print("No new announcements today (arXiv does not announce on weekends/holidays). Exiting.")
         return
+
+    history_path = os.path.join(ROOT_DIR, config.get("history_file", "history/seen_papers.json"))
+    history = {} if args.no_history else load_history(history_path)
+    fetched = len(papers)
+    papers = [p for p in papers if p["id"] not in history]
+    if fetched > len(papers):
+        print(f"Skipped {fetched - len(papers)} papers already screened before (use --no-history to include them)")
 
     candidates = keyword_prefilter(papers, config.get("prefilter"))
     print(f"{len(candidates)} papers passed the keyword prefilter")
@@ -487,16 +522,19 @@ def main():
         key=lambda p: p["score"], reverse=True,
     )
     to_analyze = [p for p in selected if p["score"] >= config.get("analysis_threshold", 7)]
-    to_analyze = to_analyze[:config.get("max_analyzed", 12)]
-    print(f"{len(selected)} papers selected, {len(to_analyze)} for deep analysis")
+    to_analyze = to_analyze[:config.get("max_analyzed", 5)]
+    rest = [p for p in selected if p not in to_analyze]
+    briefs, extras = rest[:config.get("max_listed", 5)], rest[config.get("max_listed", 5):]
+    print(f"{len(selected)} papers selected: {len(to_analyze)} deep analysis, {len(briefs)} one-line, {len(extras)} title-only")
 
     if to_analyze:
         max_chars = llm_cfg.get("max_fulltext_chars", 40000)
         with ThreadPoolExecutor(max_workers=3) as pool:
             list(pool.map(lambda p: analyze_paper(p, analysis_client, interest, language, max_chars), to_analyze))
 
-    stats = {"fetched": len(papers), "prefiltered": len(candidates), "model": f"{screen_model} / {analysis_model}"}
-    report = render_html(selected, stats, date_str)
+    stats = {"fetched": fetched, "seen": fetched - len(papers), "prefiltered": len(candidates),
+             "model": f"{screen_model} / {analysis_model}"}
+    report = render_html(to_analyze, briefs, extras, stats, date_str)
 
     out_path = os.path.join(DIGEST_DIR, f"sciml_digest_{date_str}.html")
     for path in (out_path, os.path.join(ROOT_DIR, "digest.html")):
@@ -510,6 +548,13 @@ def main():
 
     if not args.no_email and selected:
         send_email(report, f"SciML arXiv Digest {date_str} — {len(selected)}편")
+
+    # Record screened papers only after the digest is out, so a failed run can simply be retried.
+    if not args.no_history:
+        for p in candidates:
+            history[p["id"]] = {"date": date_str, "score": p.get("score", 0)}
+        save_history(history_path, history)
+        print(f"History updated: {len(history)} papers in {history_path}")
 
 
 if __name__ == "__main__":

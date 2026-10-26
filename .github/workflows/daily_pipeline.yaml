@@ -20,6 +20,14 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements-sciml.txt
+    # Persist the list of already-screened papers between runs (history/ is not committed).
+    # Each run saves a new cache entry; restore-keys picks the most recent one.
+    - name: Restore paper history
+      uses: actions/cache/restore@v4
+      with:
+        path: history
+        key: seen-papers-${{ github.run_id }}
+        restore-keys: seen-papers-
     - name: Generate and email digest
       run: python src/sciml_digest.py
       env:
@@ -31,6 +39,12 @@ jobs:
         MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
         MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
         TO_EMAIL: ${{ secrets.TO_EMAIL }}
+    - name: Save paper history
+      if: success()
+      uses: actions/cache/save@v4
+      with:
+        path: history
+        key: seen-papers-${{ github.run_id }}
     - name: Upload digest
       if: always()
       uses: actions/upload-artifact@v4

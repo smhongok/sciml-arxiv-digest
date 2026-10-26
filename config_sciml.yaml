@@ -38,8 +38,15 @@ interest: |
 threshold: 5
 # 이 점수 이상인 논문은 본문(arXiv HTML)까지 읽고 상세 분석합니다.
 analysis_threshold: 7
-# 하루 상세 분석 최대 논문 수 (비용 상한).
-max_analyzed: 8
+# 하루 상세 분석 최대 논문 수 (점수 높은 순, 비용 상한).
+max_analyzed: 5
+# 상세 분석 외에 한 줄 요약 카드로 보여줄 최대 논문 수.
+# 이를 넘는 관련 논문은 메일 맨 아래 "그 외 관련 논문"에 제목만 접어서 표시합니다.
+max_listed: 5
+
+# 한 번 스크리닝한 논문 ID를 기록해 다음 실행부터 제외합니다 (중복 방지).
+# 로컬에서 테스트할 때 이력을 건드리지 않으려면 --no-history 옵션을 쓰세요.
+history_file: history/seen_papers.json
 
 # 요약/분석을 작성할 언어 ("Korean", "English" 등)
 language: Korean

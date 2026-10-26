@@ -166,3 +166,4 @@ cython_debug/
 digest.html
 data/
 digest/sciml_digest_*.html
+history/
