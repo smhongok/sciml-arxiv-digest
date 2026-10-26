@@ -1,0 +1,166 @@
+# ============================================================================
+# SciML arXiv Digest 설정 파일  (python src/sciml_digest.py)
+# AI for CFD / PDE를 푸는 neural network 관련 신규 논문을 매일 골라줍니다.
+# ============================================================================
+
+# 모니터링할 arXiv 카테고리 (코드 형식). 전체 목록: https://arxiv.org/category_taxonomy
+categories:
+  - physics.flu-dyn    # Fluid Dynamics
+  - physics.comp-ph    # Computational Physics
+  - math.NA            # Numerical Analysis (= cs.NA)
+  - cs.CE              # Computational Engineering, Finance, and Science
+  - cs.LG              # Machine Learning
+  - stat.ML            # Machine Learning (stat)
+  # - math.AP          # Analysis of PDEs (이론 위주 논문을 원하면 주석 해제)
+  # - physics.ao-ph    # Atmospheric and Oceanic Physics (AI 기상/기후 모델)
+
+# true면 다른 카테고리 논문의 교차 게재(cross-list)도 포함합니다 (추천).
+include_cross_lists: true
+# true면 이미 나왔던 논문의 개정판(v2, v3...)도 포함합니다.
+include_replacements: false
+
+# 연구 관심사 (자연어). LLM이 이 내용을 기준으로 1~10점을 매깁니다.
+interest: |
+  저는 AI/딥러닝으로 CFD와 PDE 문제를 푸는 연구를 합니다. 특히 관심 있는 주제:
+  1. Neural operators (FNO, DeepONet, transformer 기반 operator, graph neural operator 등)
+  2. Physics-informed neural networks (PINNs)과 그 학습/최적화 문제
+  3. 유체역학(난류, Navier-Stokes, 공력해석 등)을 위한 ML surrogate model 및 학습 기반 simulator
+  4. 전통 수치해석 솔버와 ML의 결합 (hybrid solver, learned closure / turbulence modeling, ML-accelerated solver, learned preconditioner)
+  5. PDE를 위한 생성 모델 (diffusion / flow matching 기반 flow field 생성, super-resolution, 불확실성 정량화)
+  6. PDE / 물리 시뮬레이션용 foundation model과 벤치마크 데이터셋
+  7. Inverse problem, data assimilation, flow control에 ML 적용
+  관심 없는 것: PDE/물리 시뮬레이션과 무관한 일반 ML 논문, ML을 쓰지 않는 순수 수치해석 논문.
+
+# ---------------------------------------------------------------------------
+# 점수 기준
+# ---------------------------------------------------------------------------
+# 이 점수 이상인 논문만 다이제스트에 표시합니다 (1~10).
+threshold: 5
+# 이 점수 이상인 논문은 본문(arXiv HTML)까지 읽고 상세 분석합니다.
+analysis_threshold: 7
+# 하루 상세 분석 최대 논문 수 (비용 상한).
+max_analyzed: 8
+
+# 요약/분석을 작성할 언어 ("Korean", "English" 등)
+language: Korean
+
+# ---------------------------------------------------------------------------
+# LLM 설정
+# ---------------------------------------------------------------------------
+# provider: auto | anthropic | openai | gemini
+#   auto = ANTHROPIC_API_KEY > OPENAI_API_KEY > GEMINI_API_KEY 순서로 키가 있는 것을 사용
+llm:
+  provider: openai
+  # 비워두면 provider별 기본 모델을 사용합니다:
+  #   anthropic: claude-haiku-5-5 (스크리닝) / claude-opus-5-5 (상세 분석)
+  #   openai:    gpt-5-nano / gpt-5-mini   (nano는 한국어 품질이 낮아 스크리닝도 mini 사용, 하루 +5원 수준)
+  #   gemini:    gemini-2.5-flash / gemini-2.5-pro
+  # 분석 품질을 더 원하면 analysis_model을 gpt-5 로 바꾸세요 (비용 증가).
+  screening_model: "gpt-5-mini"
+  analysis_model: ""
+  # OpenAI gpt-5 계열의 추론 강도: minimal | low | medium | high
+  # 추론 토큰도 출력 요금으로 청구되므로 낮을수록 저렴합니다.
+  reasoning_effort: low
+  # 스크리닝 시 한 번의 요청에 넣을 논문 수 (클수록 반복되는 지시문 토큰이 줄어듦)
+  batch_size: 15
+  # 상세 분석용 본문 최대 글자 수 (약 4글자 = 1토큰)
+  max_fulltext_chars: 20000
+
+# ---------------------------------------------------------------------------
+# 키워드 사전필터 (LLM 호출 전에 제목+초록으로 거르는 단계 → 비용 절감)
+# 통과 조건: strong 키워드 중 하나 OR (ml 키워드 하나 AND domain 키워드 하나)
+# 키워드는 단어 단위로 매칭되며 (복수형 s 허용), 끝에 * 를 붙이면 접두어 매칭입니다
+# (예: "turbulen*" → turbulence, turbulent).
+# ---------------------------------------------------------------------------
+prefilter:
+  enabled: true
+  strong:
+    - physics-informed*
+    - physics informed*
+    - pinn*
+    - neural operator*
+    - operator learning
+    - operator network
+    - fourier neural
+    - deeponet*
+    - scientific machine learning
+    - sciml
+    - neural pde
+    - neural solver
+    - learned simulator
+    - learned solver
+    - differentiable simulat*
+    - differentiable solver
+    - pde foundation model
+  ml:
+    - neural
+    - deep learning
+    - machine learning
+    - machine-learning
+    - learned
+    - learning-based
+    - data-driven
+    - transformer
+    - diffusion model
+    - flow matching
+    - generative
+    - graph network
+    - gnn
+    - surrogate
+    - reinforcement learning
+    - foundation model
+    - autoencoder*
+    - convolutional*
+    - attention
+    - large language model
+    - llm
+  domain:
+    - pde
+    - partial differential
+    - differential equation
+    - navier-stokes
+    - navier stokes
+    - euler equation
+    - fluid
+    - flow field
+    - turbulen*
+    - cfd
+    - computational fluid
+    - aerodynamic*
+    - airfoil
+    - reynolds
+    - vortex
+    - vortic*
+    - burgers
+    - darcy
+    - advection
+    - reaction-diffusion
+    - heat equation
+    - wave equation
+    - poisson
+    - helmholtz
+    - elliptic
+    - hyperbolic
+    - parabolic
+    - conservation law
+    - shock
+    - combustion
+    - multiphase
+    - boundary layer
+    - large eddy
+    - rans
+    - direct numerical simulation
+    - finite element
+    - finite volume
+    - finite difference
+    - spectral method
+    - numerical solver
+    - numerical simulation
+    - mesh
+    - physical simulation
+    - physics simulation
+    - weather
+    - climate
+    - ocean
+    - plasma
+    - magnetohydrodynamic*

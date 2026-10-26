@@ -161,3 +161,8 @@ cython_debug/
 
 # vim
 *.sw*
+
+# SciML digest outputs (generated on each run)
+digest.html
+data/
+digest/sciml_digest_*.html

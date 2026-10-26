@@ -1,76 +1,40 @@
-# This workflow will install Python dependencies, run tests and lint with a single version of Python
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
-
-name: Daily pipeline 
+name: SciML arXiv digest
 
 on:
   workflow_dispatch: {}
   schedule:
-    # * is a special character in YAML so you have to quote this string
-    # Feel free to change this cron schedule
-    # Currently its scheduled for 1:25 pm UTC, Sun-Thurs
-    - cron:  '25 13 * * 0-4'
+    # arXiv's RSS feed is refreshed around midnight US Eastern, Mon-Fri.
+    # 05:30 UTC Mon-Fri = 14:30 KST.
+    - cron: '30 5 * * 1-5'
 
 jobs:
   generate_and_send_digest:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v2
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
       with:
-        python-version: 3.8
+        python-version: '3.11'
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    - name: Generate Digest 
-      run: |
-        python src/action.py
+        pip install -r requirements-sciml.txt
+    - name: Generate and email digest
+      run: python src/sciml_digest.py
       env:
+        # Set at least one LLM key as a repository secret.
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-        FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
-        TO_EMAIL: ${{ secrets.TO_EMAIL }}
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: digest.html
-        path: digest.html
-    - name: check
-      id: check
-      env:
-        SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        # Optional: SMTP email (e.g. Gmail address + app password).
         MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
         MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
-        MAIL_CONNECTION: ${{ secrets.MAIL_CONNECTION }}
-      if: "${{ env.SENDGRID_API_KEY == '' && (env.MAIL_CONNECTION || env.MAIL_USERNAME != '' && env.MAIL_PASSWORD != '') }}"
-      run: echo "DEFINED=true" >> $GITHUB_OUTPUT 
-    - name: Send mail
-      uses: dawidd6/action-send-mail@v3
-      env:
-        DEFINED: ${{ steps.check.outputs.DEFINED }}
-      if: ${{ env.DEFINED == 'true' }}
+        TO_EMAIL: ${{ secrets.TO_EMAIL }}
+    - name: Upload digest
+      if: always()
+      uses: actions/upload-artifact@v4
       with:
-        # Specify connection via URL (replaces server_address, server_port, secure,
-        # username and password)
-        #
-        # Format:
-        #
-        #  * smtp://user:password@server:port
-        #  * smtp+starttls://user:password@server:port
-        connection_url: ${{secrets.MAIL_CONNECTION}}
-        # Required mail server address if not connection_url:
-        server_address: smtp.gmail.com
-        # Server port, default 25:
-        server_port: 465
-        username: ${{secrets.MAIL_USERNAME}}
-        password: ${{secrets.MAIL_PASSWORD}}
-        secure: true
-        subject: Personalized arXiv Digest 
-        to: ${{ secrets.TO_EMAIL }} 
-        from: "Personalized arxiv digest" 
-        html_body: file://digest.html
-        ignore_cert: true
-        convert_markdown: true
-        priority: normal 
+        name: sciml-digest
+        path: digest/sciml_digest_*.html
+        if-no-files-found: ignore

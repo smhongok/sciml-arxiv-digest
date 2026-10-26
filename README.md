@@ -1,5 +1,36 @@
 <p align="center"><img src="./readme_images/main_banner.png" width=500 /></p>
 
+# 🌊 SciML arXiv Digest (AI for CFD / Neural PDE solvers)
+
+이 포크에는 **AI로 CFD/PDE를 푸는 연구**(neural operator, PINN, ML surrogate, hybrid solver 등)에
+맞춘 데일리 다이제스트 파이프라인 `src/sciml_digest.py`가 추가되어 있습니다.
+
+**동작 방식**
+1. arXiv RSS에서 여러 카테고리(`physics.flu-dyn`, `physics.comp-ph`, `math.NA`, `cs.CE`, `cs.LG`, `stat.ML`)의 당일 신규 + cross-list 논문 수집
+2. 키워드 사전필터 (LLM 호출 전 제목+초록으로 1차 거름 → 비용 절감)
+3. 저렴한 모델로 관련도 1~10점 스크리닝
+4. 상위 논문은 arXiv HTML 본문을 읽고 상세 분석 (문제/PDE, 방법, 물리 정보 활용, 데이터, 결과, 한계, 나에게 의미)
+5. HTML 다이제스트 생성 (`digest/sciml_digest_YYYY-MM-DD.html`) + 선택적으로 이메일 발송
+
+**빠른 시작**
+```bash
+pip install -r requirements-sciml.txt
+cp .env.template .env          # ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY 중 하나 입력
+python src/sciml_digest.py --no-llm     # API 키 없이 수집+필터만 테스트
+python src/sciml_digest.py --no-email   # 전체 실행, HTML만 생성
+python src/sciml_digest.py              # 전체 실행 + 이메일 (MAIL_* 설정 시)
+```
+
+관심사, 카테고리, 점수 기준, 언어, 모델, 키워드는 모두 [`config_sciml.yaml`](config_sciml.yaml)에서 수정합니다.
+
+**GitHub Actions로 매일 자동 실행**: 레포를 본인 GitHub에 push한 뒤 Settings → Secrets and variables → Actions에서
+`ANTHROPIC_API_KEY`(또는 `OPENAI_API_KEY`/`GEMINI_API_KEY`), 메일을 받으려면 `MAIL_USERNAME`, `MAIL_PASSWORD`(Gmail 앱 비밀번호), `TO_EMAIL`을 등록하세요.
+평일 14:30 KST에 실행되며, 결과 HTML은 Actions 실행 페이지의 artifact로도 받을 수 있습니다.
+
+아래는 원본 ArxivDigest-extra의 README입니다 (기존 Gradio UI `src/app_new.py`는 그대로 남아 있습니다).
+
+---
+
 # ArXiv Digest (Enhanced Edition)
 
 **Personalized arXiv Paper Recommendations with Multiple AI Models**
