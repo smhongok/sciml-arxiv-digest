@@ -25,7 +25,7 @@ python src/sciml_digest.py              # 전체 실행 + 이메일 (MAIL_* 설�
 
 **GitHub Actions로 매일 자동 실행**: 레포를 본인 GitHub에 push한 뒤 Settings → Secrets and variables → Actions에서
 `ANTHROPIC_API_KEY`(또는 `OPENAI_API_KEY`/`GEMINI_API_KEY`), 메일을 받으려면 `MAIL_USERNAME`, `MAIL_PASSWORD`(Gmail 앱 비밀번호), `TO_EMAIL`을 등록하세요.
-평일 14:30 KST에 실행되며, 결과 HTML은 Actions 실행 페이지의 artifact로도 받을 수 있습니다.
+매일 08:30 KST에 실행되며 (새 논문이 없는 날은 메일 없음), 결과 HTML은 Actions 실행 페이지의 artifact로도 받을 수 있습니다.
 
 아래는 원본 ArxivDigest-extra의 README입니다 (기존 Gradio UI `src/app_new.py`는 그대로 남아 있습니다).
 

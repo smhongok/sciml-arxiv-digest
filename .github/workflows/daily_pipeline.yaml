@@ -3,9 +3,10 @@ name: SciML arXiv digest
 on:
   workflow_dispatch: {}
   schedule:
-    # arXiv's RSS feed is refreshed around midnight US Eastern, Mon-Fri.
-    # 05:30 UTC Mon-Fri = 14:30 KST.
-    - cron: '30 5 * * 1-5'
+    # 23:30 UTC daily = 08:30 KST. arXiv's RSS is refreshed around midnight US Eastern
+    # (13-14h KST), so a morning run picks up the batch published the previous afternoon.
+    # Days with no new papers send nothing (empty feed, or every paper already in history).
+    - cron: '30 23 * * *'
 
 jobs:
   generate_and_send_digest:
